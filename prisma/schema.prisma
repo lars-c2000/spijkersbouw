@@ -1,0 +1,248 @@
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  MEDEWERKER
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      UserRole @default(MEDEWERKER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  activities Activity[]
+
+  @@map("users")
+}
+
+// ─── CRM ─────────────────────────────────────────────────────────────────────
+
+enum CustomerType {
+  PARTICULIER
+  ZAKELIJK
+}
+
+model Customer {
+  id        String       @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  city      String?
+  postcode  String?
+  type      CustomerType @default(PARTICULIER)
+  kvk       String?
+  btwNummer String?
+  notes     String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  quotes             Quote[]
+  invoices           Invoice[]
+  subsidieAanvragen  SubsidieAanvraag[]
+
+  @@map("customers")
+}
+
+// ─── Offertes ────────────────────────────────────────────────────────────────
+
+enum QuoteStatus {
+  NIEUW
+  IN_BEHANDELING
+  VERSTUURD
+  GEWONNEN
+  VERLOREN
+}
+
+model Quote {
+  id           String      @id @default(cuid())
+  number       String      @unique
+  customer     Customer    @relation(fields: [customerId], references: [id])
+  customerId   String
+  status       QuoteStatus @default(NIEUW)
+  title        String
+  description  String?
+  projectType  String?
+  lineItems    Json        @default("[]")
+  totalExclBtw Float       @default(0)
+  btwAmount    Float       @default(0)
+  totalInclBtw Float       @default(0)
+  validUntil   DateTime?
+  notes        String?
+  attachments  Json        @default("[]")
+  sentAt       DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  invoice           Invoice?
+  subsidieAanvraag  SubsidieAanvraag?
+
+  @@map("quotes")
+}
+
+// ─── Facturen ────────────────────────────────────────────────────────────────
+
+enum InvoiceStatus {
+  CONCEPT
+  VERZONDEN
+  BETAALD
+  VERLOPEN
+}
+
+model Invoice {
+  id           String        @id @default(cuid())
+  number       String        @unique
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  customerId   String
+  quote        Quote?        @relation(fields: [quoteId], references: [id])
+  quoteId      String?       @unique
+  status       InvoiceStatus @default(CONCEPT)
+  lineItems    Json          @default("[]")
+  totalExclBtw Float         @default(0)
+  btwAmount    Float         @default(0)
+  totalInclBtw Float         @default(0)
+  invoiceDate  DateTime      @default(now())
+  dueDate      DateTime
+  paidAt       DateTime?
+  notes        String?
+  sentAt       DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@map("invoices")
+}
+
+// ─── Subsidies ───────────────────────────────────────────────────────────────
+
+enum SubsidieStatus {
+  CONCEPT
+  IN_BEHANDELING
+  INGEDIEND
+  GOEDGEKEURD
+  AFGEWEZEN
+  UITBETAALD
+}
+
+enum MaatregelType {
+  TRIPLE_GLAS
+  HR_PLUS_PLUS_GLAS
+  SPOUWMUURISOLATIE
+  DAKISOLATIE
+  VLOERISOLATIE
+  GEVELISOLATIE
+}
+
+model SubsidieAanvraag {
+  id                String         @id @default(cuid())
+  number            String         @unique
+  customer          Customer       @relation(fields: [customerId], references: [id])
+  customerId        String
+  quote             Quote?         @relation(fields: [quoteId], references: [id])
+  quoteId           String?        @unique
+  status            SubsidieStatus @default(CONCEPT)
+  projectAdres      String?
+  meldcode          String?
+  indieningsDatum   DateTime?
+  beschikkingsDatum DateTime?
+  totaalSubsidie    Float          @default(0)
+  combinatieBonus   Boolean        @default(false)
+  notes             String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  maatregelen SubsidieMaatregel[]
+
+  @@map("subsidie_aanvragen")
+}
+
+model SubsidieMaatregel {
+  id           String           @id @default(cuid())
+  aanvraag     SubsidieAanvraag @relation(fields: [aanvraagId], references: [id], onDelete: Cascade)
+  aanvraagId   String
+  type         MaatregelType
+  oppervlakte  Float
+  uWaarde      Float?
+  rdWaarde     Float?
+  productMerk  String?
+  productModel String?
+  tarief       Float
+  subsidie     Float
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@map("subsidie_maatregelen")
+}
+
+// ─── CMS ─────────────────────────────────────────────────────────────────────
+
+model CmsBlock {
+  id        String   @id @default(cuid())
+  page      String
+  key       String
+  value     String
+  type      String   @default("text")
+  updatedAt DateTime @updatedAt
+
+  @@unique([page, key])
+  @@map("cms_blocks")
+}
+
+model BlogPost {
+  id          String    @id @default(cuid())
+  title       String
+  slug        String    @unique
+  excerpt     String?
+  content     String
+  coverImage  String?
+  category    String    @default("Nieuws")
+  published   Boolean   @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("blog_posts")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  category    String
+  year        Int
+  images      Json     @default("[]")
+  published   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("projects")
+}
+
+// ─── Activiteit log ──────────────────────────────────────────────────────────
+
+model Activity {
+  id        String   @id @default(cuid())
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@map("activities")
+}
